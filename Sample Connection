@@ -1,0 +1,387 @@
+ public static string ConnectionString
+        {
+            get
+            {
+                return ConfigurationManager.ConnectionStrings[ApplicationData.ConnectionStringName].ConnectionString;
+            }
+        }
+        public static string NLogConnectionString
+        {
+            get
+            {
+                return ConfigurationManager.ConnectionStrings[ApplicationData.NLogConnectionString].ConnectionString;
+            }
+        }
+        
+        
+        
+        
+           public class SystemAccess : BaseAccess, ISystemDataProvider
+    {
+        public List<EntityConfigurationProfile> ProfileSearch(EntityConfigurationFilterParam param, out int total)
+        {
+            List<EntityConfigurationProfile> retResult = new List<EntityConfigurationProfile>();
+
+            try
+            {
+                using (SqlConnection conn = new SqlConnection(this.ConnectionString))
+                {
+                    string commandName = "O4APIEntityProfiles";
+                    using (SqlCommand command = new SqlCommand(commandName, conn))
+                    {
+                        command.CommandType = CommandType.StoredProcedure;
+                        conn.Open();
+
+                        command.Parameters.Add("@rTotalRowCount", SqlDbType.Int).Direction = ParameterDirection.Output;
+                        DataAccessUtility.AddParameter(command, "@pPageName", param.MainFilter.PageName);
+                        DataAccessUtility.AddParameter(command, "@pProfileName", param.MainFilter.ProfileName);
+                        DataAccessUtility.AddParameter(command, "@pPageID", param.MainFilter.PageID);
+                        DataAccessUtility.AddParameter(command, "@pInclude", param.ReturnConfigrationDetail);
+
+                        if (param.MainFilter.ProfileId != null && param.MainFilter.ProfileId.Count > 0)
+                        {
+                            DataAccessUtility.AddParameter(command, "@pProfileId", String.Join(",", param.MainFilter.ProfileId.ToArray()));
+                        }
+
+                        using (IDataReader dataReader = command.ExecuteReader())
+                        {
+                            while (dataReader.Read())
+                            {
+                                EntityConfigurationProfile profile = new EntityConfigurationProfile();
+                                profile.Id = DataAccessUtility.DbNullToString(dataReader["EntityConfigurationProfileId"]);
+                                profile.Name = DataAccessUtility.DbNullToString(dataReader["Name"]);
+                                profile.Description = DataAccessUtility.DbNullToString(dataReader["Description"]);
+
+                                retResult.Add(profile);
+                            }
+                            if (param.ReturnConfigrationDetail)
+                            {
+                                dataReader.NextResult();
+                                while (dataReader.Read())
+                                {
+                                    var prof = retResult.FirstOrDefault(x => x.Id.Equals(DataAccessUtility.DbNullToString(dataReader["EntityConfigurationProfileId"])));
+                                    if (prof.EntityConfigurationDetails == null)
+                                    {
+                                        prof.EntityConfigurationDetails = new List<EntityConfigurationDetail>();
+                                    }
+
+                                    EntityConfigurationDetail ed = new EntityConfigurationDetail();
+                                    ed.Id = DataAccessUtility.DbNullToString(dataReader["EntityConfigurationDetailId"]);
+                                    ed.ProfileId = DataAccessUtility.DbNullToInt32(dataReader["EntityConfigurationProfileId"]);
+                                    ed.ProfileName = DataAccessUtility.DbNullToString(dataReader["ProfileName"]);
+                                    ed.DisplayName = DataAccessUtility.DbNullToString(dataReader["DisplayName"]);
+                                    ed.Mandatory = DataAccessUtility.DbNullToBool(dataReader["Mandatory"]);
+                                    ed.Property = DataAccessUtility.DbNullToString(dataReader["PropertyName"]);
+                                    ed.Visible = DataAccessUtility.DbNullToBool(dataReader["Visible"]);
+
+                                    ed.EntityResourceDetail = new EntityResourceDetail()
+                                    {
+                                        Id = DataAccessUtility.DbNullToString(dataReader["EntityResourceDetailId"])
+                                    };
+                                    prof.EntityConfigurationDetails.Add(ed);
+                                }
+                            }
+                            else
+                            {
+                                dataReader.NextResult();
+                                while (dataReader.Read())
+                                {
+                                    var prof = retResult.FirstOrDefault(x => x.Id.Equals(DataAccessUtility.DbNullToString(dataReader["EntityConfigurationProfileId"])));
+                                    if (prof.EntityConfigurationDetails == null)
+                                    {
+                                        prof.EntityConfigurationDetails = new List<EntityConfigurationDetail>();
+                                    }
+
+                                    EntityConfigurationDetail ed = new EntityConfigurationDetail();
+                                    ed.Id = DataAccessUtility.DbNullToString(dataReader["EntityConfigurationDetailId"]);
+                                    prof.EntityConfigurationDetails.Add(ed);
+                                }
+                            }
+                        }
+                        total = Convert.ToInt32(command.Parameters["@rTotalRowCount"].Value);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                NLogLogger.LogError("SystemAccess: ProfileSearch", ex);
+                throw ex;
+            }
+            return retResult;
+        }
+        public List<EntityConfigurationDetail> ProfileDetailSearch(EntityConfigurationFilterParam param)
+        {
+            List<EntityConfigurationDetail> retResult = new List<EntityConfigurationDetail>();
+            try
+            {
+                using (SqlConnection conn = new SqlConnection(this.ConnectionString))
+                {
+                    string commandName = "O4APIEntityProfileDetails";
+                    using (SqlCommand command = new SqlCommand(commandName, conn))
+                    {
+                        command.CommandType = CommandType.StoredProcedure;
+                        conn.Open();
+
+                        DataAccessUtility.AddParameter(command, "@pId", param.Id);
+                        DataAccessUtility.AddParameter(command, "@pInclude", param.ReturnResourceDetail);
+                        DataAccessUtility.AddParameter(command, "@pIncludeResource", param.ReturnResource);
+
+                        using (IDataReader dataReader = command.ExecuteReader())
+                        {
+                            while (dataReader.Read())
+                            {
+                                EntityConfigurationDetail detail = new EntityConfigurationDetail();
+                                detail.Id = DataAccessUtility.DbNullToString(dataReader["EntityConfigurationDetailId"]);
+                                detail.ProfileName = DataAccessUtility.DbNullToString(dataReader["ProfileName"]);
+                                detail.DisplayName = DataAccessUtility.DbNullToString(dataReader["DisplayName"]);
+                                detail.ProfileId = DataAccessUtility.DbNullToInt32(dataReader["EntityConfigurationProfileId"]);
+                                detail.Mandatory = DataAccessUtility.DbNullToBool(dataReader["Mandatory"]);
+                                detail.Property = DataAccessUtility.DbNullToString(dataReader["PropertyName"]);
+                                detail.Visible = DataAccessUtility.DbNullToBool(dataReader["Visible"]);
+                                detail.ReadOnly = DataAccessUtility.DbNullToBool(dataReader["ReadOnly"]);
+                                detail.ValidationMessage = DataAccessUtility.DbNullToString(dataReader["ValidationMessage"]);
+                                retResult.Add(detail);
+                            }
+                            if (param.ReturnResourceDetail)
+                            {
+                                dataReader.NextResult();
+                                while (dataReader.Read())
+                                {
+                                    var prof = retResult.First(x => x.Id.Equals(DataAccessUtility.DbNullToString(dataReader["EntityConfigurationDetailId"])));
+
+                                    EntityResourceDetail resource = new EntityResourceDetail();
+                                    resource.Id = DataAccessUtility.DbNullToString(dataReader["EntityResourceDetailId"]);
+                                    resource.DisplayName = DataAccessUtility.DbNullToString(dataReader["DisplayName"]);
+                                    resource.PropertyName = DataAccessUtility.DbNullToString(dataReader["Mandatory"]);
+                                    resource.Mandatory = DataAccessUtility.DbNullToBool(dataReader["Mandatory"]);
+                                    resource.Visible = DataAccessUtility.DbNullToBool(dataReader["Visible"]);
+                                    resource.Fixed = DataAccessUtility.DbNullToBool(dataReader["Fixed"]);
+                                    prof.EntityResourceDetail = resource;
+                                }
+                            }
+                            else
+                            {
+                                dataReader.NextResult();
+                                while (dataReader.Read())
+                                {
+                                    var prof = retResult.First(x => x.Id.Equals(DataAccessUtility.DbNullToString(dataReader["EntityConfigurationDetailId"])));
+
+                                    EntityResourceDetail resource = new EntityResourceDetail();
+                                    resource.Id = DataAccessUtility.DbNullToString(dataReader["EntityResourceDetailId"]);
+                                    prof.EntityResourceDetail = resource;
+                                }
+                            }
+
+                            if (param.ReturnResourceDetail)
+                            {
+                                if (param.ReturnResource)
+                                {
+                                    dataReader.NextResult();
+                                    while (dataReader.Read())
+                                    {
+                                        var prof = retResult.FirstOrDefault(x => x.Id.Equals(DataAccessUtility.DbNullToString(dataReader["EntityConfigurationDetailId"])));
+
+                                        EntityResource resource = new EntityResource();
+                                        resource.Id = DataAccessUtility.DbNullToString(dataReader["EntityResourceId"]);
+                                        resource.Name = DataAccessUtility.DbNullToString(dataReader["Name"]);
+
+                                        prof.EntityResourceDetail.EntityResource = resource;
+                                    }
+                                }
+                                else
+                                {
+                                    dataReader.NextResult();
+                                    while (dataReader.Read())
+                                    {
+                                        var prof = retResult.FirstOrDefault(x => x.Id.Equals(DataAccessUtility.DbNullToString(dataReader["EntityConfigurationDetailId"])));
+
+                                        EntityResource resource = new EntityResource();
+                                        resource.Id = DataAccessUtility.DbNullToString(dataReader["EntityResourceId"]);
+
+                                        prof.EntityResourceDetail.EntityResource = resource;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                NLogLogger.LogError("SystemAccess: ProfileDetailSearch", ex);
+                throw ex;
+            }
+            return retResult;
+        }
+
+        public List<EntityConfigurationDetail> GetEntityResourceDetails(EntityConfigurationFilterParam param)
+        {
+            List<EntityConfigurationDetail> retResult = new List<EntityConfigurationDetail>();
+            try
+            {
+                using (SqlConnection conn = new SqlConnection(this.ConnectionString))
+                {
+                    string commandName = "O4APIEntityProfileDetailsResourceWise";
+                    using (SqlCommand command = new SqlCommand(commandName, conn))
+                    {
+                        command.CommandType = CommandType.StoredProcedure;
+                        conn.Open();
+
+                        DataAccessUtility.AddParameter(command, "@pResourceID", param.ResourceId);
+                        DataAccessUtility.AddParameter(command, "@pIncludeResourceDetail", param.ReturnResourceDetail);
+                        DataAccessUtility.AddParameter(command, "@pIncludeResource", param.ReturnResource);
+
+                        using (IDataReader dataReader = command.ExecuteReader())
+                        {
+                            while (dataReader.Read())
+                            {
+                                EntityConfigurationDetail detail = new EntityConfigurationDetail();
+                                detail.Id = DataAccessUtility.DbNullToString(dataReader["EntityConfigurationDetailId"]);
+                                detail.ProfileName = DataAccessUtility.DbNullToString(dataReader["ProfileName"]);
+                                detail.DisplayName = DataAccessUtility.DbNullToString(dataReader["DisplayName"]);
+                                detail.ProfileId = DataAccessUtility.DbNullToInt32(dataReader["EntityConfigurationProfileId"]);
+                                detail.Mandatory = DataAccessUtility.DbNullToBool(dataReader["Mandatory"]);
+                                detail.Property = DataAccessUtility.DbNullToString(dataReader["PropertyName"]);
+                                detail.Visible = DataAccessUtility.DbNullToBool(dataReader["Visible"]);
+                                detail.ReadOnly = DataAccessUtility.DbNullToBool(dataReader["ReadOnly"]);
+                                detail.ValidationMessage = DataAccessUtility.DbNullToString(dataReader["ValidationMessage"]);
+                                detail.ApplicationId = DataAccessUtility.DbNullToInt32(dataReader["ApplicationId"]);
+                                detail.Default = DataAccessUtility.DbNullToBool(dataReader["Default"]);
+                                detail.EntityResourceId = DataAccessUtility.DbNullToInt32(dataReader["EntityResourceId"]);
+                                if (param.ReturnResourceDetail)
+                                {
+                                    EntityResourceDetail resource = new EntityResourceDetail();
+                                    {
+                                       
+                                        resource.DisplayName = DataAccessUtility.DbNullToString(dataReader["Resource_DisplayName"]);
+                                        resource.PropertyName = DataAccessUtility.DbNullToString(dataReader["PropertyName"]);
+                                        resource.Visible = DataAccessUtility.DbNullToBool(dataReader["Resource_Visible"]);
+                                        resource.Fixed = DataAccessUtility.DbNullToBool(dataReader["Resource_Fixed"]);                                        
+                                        resource.Id = DataAccessUtility.DbNullToString(dataReader["EntityResourceDetailId"]);                                       
+                                        resource.Mandatory = DataAccessUtility.DbNullToBool(dataReader["Mandatory"]);
+                                        resource.EntityResource = new EntityResource() { Id= detail.EntityResourceId.ToString() };                                     
+                                        detail.EntityResourceDetail = resource;
+                                    }
+                                }else
+                                {
+                                    EntityResourceDetail resource = new EntityResourceDetail();
+                                    detail.EntityResourceDetail = new EntityResourceDetail();
+                                    resource.Id = DataAccessUtility.DbNullToString(dataReader["EntityResourceDetailId"]);
+                                }
+                            }
+                            /*if (param.ReturnResourceDetail)
+                            {
+                                dataReader.NextResult();
+                                while (dataReader.Read())
+                                {
+                                    var prof = retResult.First(x => x.Id.Equals(DataAccessUtility.DbNullToString(dataReader["EntityConfigurationDetailId"])));
+
+                                    EntityResourceDetail resource = new EntityResourceDetail();
+                                    resource.Id = DataAccessUtility.DbNullToString(dataReader["EntityResourceDetailId"]);
+                                    resource.DisplayName = DataAccessUtility.DbNullToString(dataReader["DisplayName"]);
+                                    resource.PropertyName = DataAccessUtility.DbNullToString(dataReader["Mandatory"]);
+                                    resource.Mandatory = DataAccessUtility.DbNullToBool(dataReader["Mandatory"]);
+                                    resource.Visible = DataAccessUtility.DbNullToBool(dataReader["Visible"]);
+                                    resource.Fixed = DataAccessUtility.DbNullToBool(dataReader["Fixed"]);
+                                    prof.EntityResourceDetail = resource;
+                                }
+                            }
+                            else
+                            {
+                                dataReader.NextResult();
+                                while (dataReader.Read())
+                                {
+                                    var prof = retResult.First(x => x.Id.Equals(DataAccessUtility.DbNullToString(dataReader["EntityConfigurationDetailId"])));
+
+                                    EntityResourceDetail resource = new EntityResourceDetail();
+                                    resource.Id = DataAccessUtility.DbNullToString(dataReader["EntityResourceDetailId"]);
+                                    prof.EntityResourceDetail = resource;
+                                }
+                            }
+                            */
+                            //if (param.ReturnResource)
+                            {
+                               
+                                if (param.ReturnResource)
+                                {
+                                    dataReader.NextResult();
+                                    while (dataReader.Read())
+                                    {
+                                        var resourceId = DataAccessUtility.DbNullToString(dataReader["EntityResourceId"]);
+                                        EntityResource resource = new EntityResource();
+                                        resource.Id = resourceId;
+                                        resource.Name = DataAccessUtility.DbNullToString(dataReader["Name"]);
+                                        retResult.ForEach(x =>
+                                        {
+                                            if (x.EntityResourceId.Value.ToString() == resourceId && x.EntityResourceDetail != null)
+                                            {
+                                                x.EntityResourceDetail.EntityResource = resource;
+                                            }
+                                        }
+                                        );
+                                        
+                                    }
+                                }
+                                
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                NLogLogger.LogError("SystemAccess: ProfileDetailSearch", ex);
+                throw ex;
+            }
+            return retResult;
+        }
+
+        public List<EnityConfigurationPage> PageSearch(EntityConfigurationFilterParam param, out int total)
+        {
+            List<EnityConfigurationPage> retResult = new List<EnityConfigurationPage>();
+            try
+            {
+                using (SqlConnection conn = new SqlConnection(this.ConnectionString))
+                {
+                    string commandName = "O4APIEntityPages";
+                    using (SqlCommand command = new SqlCommand(commandName, conn))
+                    {
+                        command.CommandType = CommandType.StoredProcedure;
+                        conn.Open();
+
+                        command.Parameters.Add("@rTotalRowCount", SqlDbType.Int).Direction = ParameterDirection.Output;
+                        DataAccessUtility.AddParameter(command, "@pPageName", param.MainFilter.PageName);
+
+                        if (param.MainFilter.SalesChannelId != null && param.MainFilter.SalesChannelId.Count > 0)
+                        {
+                            DataAccessUtility.AddParameter(command, "@pSalesChannelId", String.Join(",", param.MainFilter.SalesChannelId.ToArray()));
+                        }
+
+                        using (IDataReader dataReader = command.ExecuteReader())
+                        {
+                            while (dataReader.Read())
+                            {
+
+                                EnityConfigurationPage page = new EnityConfigurationPage();
+
+                                page.Id = DataAccessUtility.DbNullToString(dataReader["EntityConfigurationPageId"]);
+                                page.ProfileName = DataAccessUtility.DbNullToString(dataReader["ProfileName"]);
+                                page.PageName = DataAccessUtility.DbNullToString(dataReader["PageName"]);
+                                page.ProfileId = DataAccessUtility.DbNullToInt32(dataReader["EntityConfigurationProfileId"]);
+                                page.SalesChannelId = DataAccessUtility.DbNullToInt32(dataReader["SalesChannelID"]);
+                                page.SalesChannelName = DataAccessUtility.DbNullToString(dataReader["SalesChannel"]);
+                                retResult.Add(page);
+
+                            }
+                        }
+                        total = Convert.ToInt32(command.Parameters["@rTotalRowCount"].Value);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                NLogLogger.LogError("SystemAccess: PageSearch", ex);
+                throw ex;
+            }
+            return retResult;
+        }
