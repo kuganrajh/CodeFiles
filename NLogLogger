@@ -1,0 +1,42 @@
+ public class NLogLogger
+    {
+        private static Logger _log { get; set; }
+
+        private static Random _random { get; set; }
+
+        static NLogLogger()
+        {
+            _log = LogManager.GetCurrentClassLogger();
+            _random = new Random();
+        }
+
+        public static string LogError(string message, Exception ex)
+        {
+            var random = _random.Next(100000).ToString();
+            _log.Log(new LogEventInfo()
+            {
+                LoggerName = "OptFile",
+                Exception = ex,
+                Level = LogLevel.Error,
+                Message = string.Format("Error: " + message + " {0}: ", "StackTrace: " + ex.StackTrace, random)
+            });
+
+            #if DEBUG
+                string errorMessage = ex.Message;
+            #else
+                string errorMessage = string.Format("System Error Occured({0})", random);
+            #endif
+
+            return errorMessage;
+        }
+
+        public static void LogMessage(string message)
+        {
+            _log.Log(new LogEventInfo()
+            {
+                LoggerName = "OptFile",
+                Level = LogLevel.Info,
+                Message = string.Format("Error: " + message)
+            });
+        }
+    }
